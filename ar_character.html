@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AR 캐릭터</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#000;overflow:hidden;font-family:-apple-system,sans-serif;height:100dvh;width:100vw;touch-action:none}
+
+#video{position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1}
+#fg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none}
+#scene{position:fixed;top:0;left:0;width:100%;height:100%;z-index:3;pointer-events:none}
+#shadow-layer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none}
+
+.char-obj{position:absolute;display:flex;flex-direction:column;align-items:center;pointer-events:all;transform-origin:bottom center;touch-action:none;will-change:transform}
+.char-obj img{display:block;image-rendering:pixelated}
+.char-shadow-el{position:absolute;pointer-events:none}
+
+#ui{position:fixed;bottom:0;left:0;right:0;z-index:10;background:linear-gradient(transparent,rgba(0,0,0,0.88));padding:14px 14px 36px;transition:opacity 0.4s}
+#ui.hidden{opacity:0;pointer-events:none}
+
+.slot-row{display:flex;gap:7px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.slot-row::-webkit-scrollbar{display:none}
+.slot-btn{flex-shrink:0;width:58px;height:58px;border-radius:11px;border:2px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:white;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden}
+.slot-btn.active{border-color:#fff;background:rgba(255,255,255,0.22)}
+.slot-btn img{width:100%;height:100%;object-fit:contain;position:absolute;top:0;left:0}
+.slot-num{position:absolute;top:2px;left:5px;font-size:11px;font-weight:700;color:white;text-shadow:0 1px 3px black;z-index:2}
+.slot-plus{font-size:22px;line-height:1}
+
+.row{display:flex;gap:7px;margin-bottom:8px;align-items:stretch}
+.btn{flex:1;padding:10px 4px;border-radius:9px;border:1.5px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;font-size:12px;font-weight:500;cursor:pointer;line-height:1.3;text-align:center}
+.btn.on{background:rgba(255,255,255,0.28);border-color:white}
+.btn.rec{background:rgba(220,30,30,0.7);border-color:#ff4444}
+.btn.rec-stop{background:rgba(220,30,30,0.9);border-color:#ff4444;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+
+.vol-ring{width:38px;flex-shrink:0;border-radius:9px;border:1.5px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.08);display:flex;align-items:flex-end;justify-content:center;overflow:hidden;position:relative;padding:0}
+.vol-bar{position:absolute;bottom:0;left:0;right:0;height:0%;background:rgba(80,255,120,0.65);transition:height 0.05s}
+.vol-txt{position:relative;font-size:16px;z-index:1;padding:10px 0}
+
+#status{position:fixed;top:16px;left:0;right:0;text-align:center;color:rgba(255,255,255,0.85);font-size:13px;z-index:20;pointer-events:none;text-shadow:0 1px 4px black;transition:opacity 0.5s}
+
+#rec-indicator{position:fixed;top:16px;left:16px;z-index:20;display:none;align-items:center;gap:6px;background:rgba(0,0,0,0.5);padding:5px 10px;border-radius:20px}
+#rec-indicator .dot{width:8px;height:8px;border-radius:50%;background:#ff3333;animation:pulse 1s infinite}
+#rec-indicator span{color:white;font-size:12px;font-weight:600}
+
+#start-screen{position:fixed;inset:0;z-index:30;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:white;text-align:center;padding:30px}
+#start-screen h1{font-size:28px;font-weight:700}
+#start-screen p{font-size:14px;color:rgba(255,255,255,0.6);line-height:1.7}
+#start-btn{padding:15px 44px;background:white;color:black;border:none;border-radius:50px;font-size:17px;font-weight:700;cursor:pointer}
+
+#file-input,#lip-input{display:none}
+
+#fg-hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;background:rgba(0,0,0,0.75);color:white;padding:14px 20px;border-radius:12px;font-size:13px;text-align:center;line-height:1.7;pointer-events:none;display:none}
+</style>
+</head>
+<body>
+
+<div id="start-screen">
+  <h1>🎭 AR 캐릭터</h1>
+  <p>카메라·마이크 권한이 필요해요<br><strong>허용</strong>을 눌러주세요<br><br><span style="font-size:12px;opacity:0.5">반드시 https:// 주소에서 열어야 작동해요</span></p>
+  <button id="start-btn">시작하기</button>
+</div>
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="shadow-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none"></canvas>
+<div id="scene"></div>
+<canvas id="fg-canvas"></canvas>
+<div id="rec-indicator"><div class="dot"></div><span>REC</span></div>
+<div id="status"></div>
+<div id="fg-hint"></div>
+
+<div id="ui">
+  <div class="slot-row" id="slot-row"></div>
+
+  <div class="row">
+    <button class="btn" onclick="pickLip()">👄 입열림 GIF<br><span style="font-size:10px;opacity:0.6">현재 슬롯에 등록</span></button>
+    <button class="btn" id="fg-btn" onclick="toggleFgMode()">🫙 사물 앞에<br><span style="font-size:10px;opacity:0.6">OFF</span></button>
+    <button class="btn" onclick="resizeChar(-24)">− 작게</button>
+    <button class="btn" onclick="resizeChar(24)">+ 크게</button>
+  </div>
+
+  <div class="row">
+    <button class="btn" id="mic-btn" onclick="toggleMic()">🎤 마이크<br><span style="font-size:10px;opacity:0.6">눌러서 켜기</span></button>
+    <div class="vol-ring" style="min-height:52px">
+      <div class="vol-bar" id="vol-bar"></div>
+      <span class="vol-txt">〜</span>
+    </div>
+    <button class="btn" onclick="resetPos()">📍 초기화</button>
+    <button class="btn rec" id="rec-btn" onclick="toggleRec()">⏺ 녹화<br><span style="font-size:10px;opacity:0.6">시작</span></button>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="image/gif,image/png,image/jpeg,image/webp">
+<input type="file" id="lip-input" accept="image/gif,image/png,image/jpeg,image/webp">
+
+<script>
+// ── state ──────────────────────────────────────────────
+const NUM = 6;
+let slots = Array.from({length:NUM}, (_,i)=>({url:null,lipUrl:null,img:null,lipImg:null}));
+let activeSlot = 0;
+let charEl = null, shadowEl = null;
+let charSize = 140;
+let charX = 50, charY = 42;
+let isTalking = false, micOn = false;
+let tiltGamma = 0;
+let brightness = 1.0;
+let fgMode = false;
+let recorder = null, recChunks = [], recOn = false;
+let uiVisible = true, uiTimer = null;
+
+const scene = document.getElementById('scene');
+const video = document.getElementById('video');
+const fgCanvas = document.getElementById('fg-canvas');
+const fgCtx = fgCanvas.getContext('2d');
+const shadowCanvas = document.getElementById('shadow-canvas');
+const shadowCtx = shadowCanvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const volBar = document.getElementById('vol-bar');
+const recInd = document.getElementById('rec-indicator');
+
+// ── resize canvas ──────────────────────────────────────
+function resizeCanvases() {
+  fgCanvas.width = window.innerWidth * devicePixelRatio;
+  fgCanvas.height = window.innerHeight * devicePixelRatio;
+  fgCanvas.style.width = window.innerWidth + 'px';
+  fgCanvas.style.height = window.innerHeight + 'px';
+  shadowCanvas.width = window.innerWidth;
+  shadowCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+
+// ── slots UI ───────────────────────────────────────────
+function buildSlots() {
+  const row = document.getElementById('slot-row');
+  row.innerHTML = '';
+  slots.forEach((s,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'slot-btn' + (i===activeSlot?' active':'');
+    btn.dataset.i = i;
+    const num = document.createElement('span'); num.className='slot-num'; num.textContent=i+1;
+    btn.appendChild(num);
+    if (s.url) {
+      const img = document.createElement('img'); img.src=s.url; btn.appendChild(img);
+    } else {
+      const pl = document.createElement('span'); pl.className='slot-plus'; pl.textContent='＋'; btn.appendChild(pl);
+    }
+    btn.addEventListener('click', ()=>slotTap(i));
+    row.appendChild(btn);
+  });
+}
+
+function slotTap(i) {
+  if (!slots[i].url) { activeSlot=i; document.getElementById('file-input').click(); }
+  else { activeSlot=i; buildSlots(); renderChar(); setStatus(`캐릭터 ${i+1}번`); }
+}
+
+document.getElementById('file-input').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f);
+  slots[activeSlot].url=url;
+  loadImg(url, img=>{ slots[activeSlot].img=img; });
+  buildSlots(); renderChar(); setStatus(`슬롯 ${activeSlot+1} 등록 ✓`);
+  e.target.value='';
+});
+
+function pickLip(){ document.getElementById('lip-input').click(); }
+document.getElementById('lip-input').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f);
+  slots[activeSlot].lipUrl=url;
+  loadImg(url, img=>{ slots[activeSlot].lipImg=img; });
+  setStatus(`슬롯 ${activeSlot+1} 입열림 GIF 등록 ✓`);
+  e.target.value='';
+});
+
+function loadImg(url, cb) {
+  const img=new Image(); img.onload=()=>cb(img); img.src=url;
+}
+
+// ── char render ────────────────────────────────────────
+function renderChar() {
+  if (charEl) { charEl.remove(); charEl=null; }
+  if (shadowEl) { shadowEl.remove(); shadowEl=null; }
+  const s = slots[activeSlot];
+  if (!s.url) { setStatus('슬롯을 눌러 GIF 등록하세요 👆'); return; }
+
+  charEl = document.createElement('div');
+  charEl.className = 'char-obj';
+  charEl.style.cssText = `left:${charX}%;top:${charY}%;transform:translate(-50%,-100%)`;
+
+  const img = document.createElement('img');
+  img.src = isTalking && s.lipUrl ? s.lipUrl : s.url;
+  img.style.width = charSize + 'px';
+  img.draggable = false;
+  charEl.appendChild(img);
+  scene.appendChild(charEl);
+
+  makeDraggable(charEl);
+  applyTilt();
+  drawShadow();
+}
+
+function updateCharImg() {
+  if (!charEl) return;
+  const s = slots[activeSlot];
+  const img = charEl.querySelector('img');
+  if (img) img.src = isTalking && s.lipUrl ? s.lipUrl : s.url;
+}
+
+// ── tilt (billboard paper effect) ─────────────────────
+window.addEventListener('deviceorientation', e=>{
+  if (e.gamma===null) return;
+  tiltGamma = Math.max(-80, Math.min(80, e.gamma));
+  applyTilt();
+  drawShadow();
+});
+
+function applyTilt() {
+  if (!charEl) return;
+  const scaleX = Math.max(0.04, 1 - Math.abs(tiltGamma)*0.013);
+  const skewY = tiltGamma * 0.28;
+  const img = charEl.querySelector('img');
+  if (img) {
+    img.style.filter = `brightness(${brightness}) drop-shadow(0 6px 10px rgba(0,0,0,0.5))`;
+  }
+  charEl.style.transform = `translate(-50%,-100%) scaleX(${scaleX.toFixed(3)}) skewY(${skewY.toFixed(2)}deg)`;
+}
+
+// ── shadow on floor ────────────────────────────────────
+function drawShadow() {
+  shadowCtx.clearRect(0,0,shadowCanvas.width,shadowCanvas.height);
+  if (!charEl) return;
+
+  const cx = charX / 100 * shadowCanvas.width;
+  const cy = charY / 100 * shadowCanvas.height;
+  const scaleX = Math.max(0.04, 1 - Math.abs(tiltGamma)*0.013);
+  const sw = charSize * scaleX;
+  const sh = charSize * 0.18;
+
+  // perspective offset based on tilt
+  const offsetX = tiltGamma * 0.6;
+
+  shadowCtx.save();
+  shadowCtx.globalAlpha = 0.38;
+  shadowCtx.translate(cx + offsetX, cy);
+  shadowCtx.scale(1, 0.22);
+  shadowCtx.beginPath();
+  shadowCtx.ellipse(0, 0, sw*0.55, sh*1.4, 0, 0, Math.PI*2);
+
+  // shadow shape: flat ellipse mimicking char silhouette
+  const grad = shadowCtx.createRadialGradient(0,0,0,0,0,sw*0.55);
+  grad.addColorStop(0,'rgba(0,0,0,0.85)');
+  grad.addColorStop(1,'rgba(0,0,0,0)');
+  shadowCtx.fillStyle = grad;
+  shadowCtx.fill();
+  shadowCtx.restore();
+}
+
+// ── foreground mode (objects appear in front of char) ──
+let fgActive = false;
+let fgAnimId = null;
+let prevFrame = null;
+
+function toggleFgMode() {
+  fgMode = !fgMode;
+  const btn = document.getElementById('fg-btn');
+  btn.querySelector('span').textContent = fgMode ? 'ON — 사물이 앞' : 'OFF';
+  btn.classList.toggle('on', fgMode);
+
+  if (fgMode) {
+    startFgLoop();
+    setStatus('사물 앞에 모드 ON — 캐릭터 앞에 사물 놓아보세요');
+  } else {
+    stopFgLoop();
+    fgCtx.clearRect(0,0,fgCanvas.width,fgCanvas.height);
+  }
+}
+
+function startFgLoop() {
+  const tmp = document.createElement('canvas');
+  tmp.width = 64; tmp.height = 48;
+  const tx = tmp.getContext('2d');
+  prevFrame = null;
+
+  function loop() {
+    if (!fgMode) return;
+    if (!video.videoWidth) { fgAnimId=requestAnimationFrame(loop); return; }
+
+    tx.drawImage(video,0,0,64,48);
+    const cur = tx.getImageData(0,0,64,48);
+
+    if (prevFrame) {
+      // motion detection: pixels that changed significantly
+      const motionMask = new Uint8ClampedArray(64*48);
+      for (let i=0;i<cur.data.length;i+=4) {
+        const pi=i/4;
+        const dr=Math.abs(cur.data[i]-prevFrame[i]);
+        const dg=Math.abs(cur.data[i+1]-prevFrame[i+1]);
+        const db=Math.abs(cur.data[i+2]-prevFrame[i+2]);
+        motionMask[pi] = (dr+dg+db > 38) ? 1 : 0;
+      }
+
+      // dilate mask a bit
+      const dilated = new Uint8ClampedArray(64*48);
+      for (let y=0;y<48;y++) for(let x=0;x<64;x++){
+        let v=0;
+        for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
+          const ny=y+dy, nx=x+dx;
+          if(ny>=0&&ny<48&&nx>=0&&nx<64) v=Math.max(v,motionMask[ny*64+nx]);
+        }
+        dilated[y*64+x]=v;
+      }
+
+      // draw motion region from video onto fgCanvas (scaled up)
+      const scaleW = window.innerWidth/64 * devicePixelRatio;
+      const scaleH = window.innerHeight/48 * devicePixelRatio;
+      fgCtx.clearRect(0,0,fgCanvas.width,fgCanvas.height);
+
+      // draw video scaled to canvas
+      fgCtx.save();
+      fgCtx.scale(scaleW, scaleH);
+      for(let y=0;y<48;y++) for(let x=0;x<64;x++){
+        if(dilated[y*64+x]) {
+          const i=(y*64+x)*4;
+          fgCtx.fillStyle=`rgba(${cur.data[i]},${cur.data[i+1]},${cur.data[i+2]},0.92)`;
+          fgCtx.fillRect(x,y,1,1);
+        }
+      }
+      fgCtx.restore();
+    }
+
+    prevFrame = cur.data.slice();
+    fgAnimId = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+function stopFgLoop() {
+  if (fgAnimId) { cancelAnimationFrame(fgAnimId); fgAnimId=null; }
+}
+
+// ── ambient brightness ─────────────────────────────────
+setInterval(()=>{
+  if (!video.videoWidth) return;
+  const t=document.createElement('canvas'); t.width=8;t.height=8;
+  const tx=t.getContext('2d'); tx.drawImage(video,0,0,8,8);
+  const d=tx.getImageData(0,0,8,8).data;
+  let s=0; for(let i=0;i<d.length;i+=4) s+=(d[i]+d[i+1]+d[i+2])/3;
+  brightness=Math.min(1.5,Math.max(0.35,(s/64)/100));
+  applyTilt();
+  drawShadow();
+}, 900);
+
+// ── mic ────────────────────────────────────────────────
+async function toggleMic() {
+  if (micOn) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const ac = new (window.AudioContext||window.webkitAudioContext)();
+    const src = ac.createMediaStreamSource(stream);
+    const an = ac.createAnalyser(); an.fftSize=512;
+    src.connect(an);
+    micOn=true;
+    document.getElementById('mic-btn').classList.add('on');
+    document.getElementById('mic-btn').innerHTML='🎤 마이크<br><span style="font-size:10px;opacity:0.6">ON</span>';
+    const data=new Uint8Array(an.frequencyBinCount);
+    function tick(){
+      an.getByteFrequencyData(data);
+      const avg=data.slice(2,40).reduce((a,b)=>a+b,0)/38;
+      volBar.style.height=Math.min(100,avg*2.6)+'%';
+      const t=avg>14;
+      if(t!==isTalking){isTalking=t;updateCharImg();}
+      requestAnimationFrame(tick);
+    }
+    tick();
+    setStatus('마이크 켜짐 — 말해보세요!');
+  } catch(e){ setStatus('마이크 허용 필요 — 설정 > Safari > 마이크'); }
+}
+
+// ── recording ──────────────────────────────────────────
+async function toggleRec() {
+  if (!recOn) {
+    // hide ui, compose stream from video element
+    setUiVisible(false);
+    await new Promise(r=>setTimeout(r,300));
+
+    try {
+      // capture the full page as stream
+      let stream;
+      // use video track + screen if available, else video only
+      const videoTrack = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
+
+      // compose: video bg drawn to offscreen canvas
+      const recCanvas = document.createElement('canvas');
+      recCanvas.width = window.innerWidth * devicePixelRatio;
+      recCanvas.height = window.innerHeight * devicePixelRatio;
+      const rCtx = recCanvas.getContext('2d');
+
+      stream = recCanvas.captureStream(30);
+
+      // add mic audio if on
+      if (micOn) {
+        const micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+        micStream.getAudioTracks().forEach(t=>stream.addTrack(t));
+      }
+
+      recorder = new MediaRecorder(stream, {mimeType:'video/webm;codecs=vp8'});
+      recChunks = [];
+      recorder.ondataavailable = e=>{ if(e.data.size>0) recChunks.push(e.data); };
+      recorder.onstop = saveRecording;
+      recorder.start(100);
+      recOn = true;
+
+      // draw loop
+      const charImg = charEl ? charEl.querySelector('img') : null;
+      function drawFrame() {
+        if (!recOn) return;
+        const dpr = devicePixelRatio;
+        rCtx.clearRect(0,0,recCanvas.width,recCanvas.height);
+        // bg video
+        if (video.videoWidth) rCtx.drawImage(video,0,0,recCanvas.width,recCanvas.height);
+        // shadow
+        rCtx.drawImage(shadowCanvas,0,0,recCanvas.width,recCanvas.height);
+        // char
+        if (charEl && slots[activeSlot].url) {
+          const s=slots[activeSlot];
+          const imgSrc=isTalking&&s.lipImg?s.lipImg:(s.img||null);
+          if(imgSrc){
+            const cx=charX/100*recCanvas.width;
+            const cy=charY/100*recCanvas.height;
+            const scaleX=Math.max(0.04,1-Math.abs(tiltGamma)*0.013);
+            const w=charSize*dpr*scaleX;
+            const h=charSize*dpr;
+            rCtx.save();
+            rCtx.translate(cx,cy);
+            const skewRad=tiltGamma*0.28*Math.PI/180;
+            rCtx.transform(1,Math.tan(skewRad),0,1,0,0);
+            rCtx.drawImage(imgSrc,-w/2,-h,w,h);
+            rCtx.restore();
+          }
+        }
+        // fg overlay
+        rCtx.drawImage(fgCanvas,0,0,recCanvas.width,recCanvas.height);
+        requestAnimationFrame(drawFrame);
+      }
+      drawFrame();
+
+      recInd.style.display='flex';
+      const btn=document.getElementById('rec-btn');
+      btn.className='btn rec-stop';
+      btn.innerHTML='⏹ 녹화중<br><span style="font-size:10px">탭해서 중지</span>';
+      setStatus('녹화 중... 중지하려면 녹화 버튼 누르세요');
+    } catch(e){
+      setUiVisible(true); recOn=false;
+      setStatus('녹화 오류: '+e.message);
+    }
+  } else {
+    recorder.stop(); recOn=false;
+    recInd.style.display='none';
+    const btn=document.getElementById('rec-btn');
+    btn.className='btn rec';
+    btn.innerHTML='⏺ 녹화<br><span style="font-size:10px;opacity:0.6">시작</span>';
+    setUiVisible(true);
+    setStatus('녹화 저장 중...');
+  }
+}
+
+function saveRecording() {
+  const blob=new Blob(recChunks,{type:'video/webm'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='ar-character-'+Date.now()+'.webm';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setStatus('녹화 저장됨 ✓ (갤러리에서 확인)');
+}
+
+// ── ui show/hide ───────────────────────────────────────
+function setUiVisible(v) {
+  uiVisible=v;
+  document.getElementById('ui').classList.toggle('hidden',!v);
+}
+
+// tap scene to toggle ui
+scene.style.pointerEvents='all';
+scene.addEventListener('click', e=>{
+  if(e.target===scene){
+    clearTimeout(uiTimer);
+    setUiVisible(!uiVisible);
+  }
+});
+
+// ── drag ───────────────────────────────────────────────
+function makeDraggable(el) {
+  let sx,sy,ox,oy;
+  el.addEventListener('pointerdown', e=>{
+    el.setPointerCapture(e.pointerId);
+    const r=scene.getBoundingClientRect();
+    sx=e.clientX; sy=e.clientY;
+    ox=charX; oy=charY;
+    e.stopPropagation(); e.preventDefault();
+  },{passive:false});
+  el.addEventListener('pointermove', e=>{
+    if(!el.hasPointerCapture(e.pointerId)) return;
+    const r=scene.getBoundingClientRect();
+    charX=Math.max(5,Math.min(95,ox+(e.clientX-sx)/r.width*100));
+    charY=Math.max(8,Math.min(88,oy+(e.clientY-sy)/r.height*100));
+    el.style.left=charX+'%'; el.style.top=charY+'%';
+    drawShadow();
+  });
+}
+
+function resizeChar(d) {
+  charSize=Math.max(50,Math.min(420,charSize+d));
+  if(charEl){const img=charEl.querySelector('img');if(img)img.style.width=charSize+'px';}
+  drawShadow();
+}
+function resetPos(){charX=50;charY=42;if(charEl){charEl.style.left='50%';charEl.style.top='42%';}drawShadow();}
+
+// ── keyboard ───────────────────────────────────────────
+document.addEventListener('keydown', e=>{
+  const n=parseInt(e.key);
+  if(n>=1&&n<=NUM) slotTap(n-1);
+});
+
+// ── camera ────────────────────────────────────────────
+async function startCamera() {
+  try {
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false
+    });
+    video.srcObject=stream;
+    await video.play();
+    setStatus('GIF를 등록하세요 👆');
+  } catch(e){ setStatus('카메라 오류: '+e.message); }
+}
+
+// ── start ──────────────────────────────────────────────
+document.getElementById('start-btn').addEventListener('click', async ()=>{
+  document.getElementById('start-screen').style.display='none';
+  await startCamera();
+  buildSlots();
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    try{ await DeviceOrientationEvent.requestPermission(); }catch(e){}
+  }
+});
+
+function setStatus(msg,dur=3500){
+  statusEl.textContent=msg; statusEl.style.opacity='1';
+  clearTimeout(statusEl._t);
+  statusEl._t=setTimeout(()=>{statusEl.style.opacity='0';},dur);
+}
+
+buildSlots();
+</script>
+</body>
+</html>
