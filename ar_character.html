@@ -10,111 +10,130 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#000;overflow:hidden;font-family:-apple-system,sans-serif;height:100dvh;width:100vw;touch-action:none}
  
+/* ── layers ── */
 #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
-#shadow-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
-#char-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:3;pointer-events:all}
  
-/* ── UI panel ── */
+/* shadow = flattened clone of char, drawn below on z:2 */
+#char-shadow{
+  position:fixed;z-index:2;
+  pointer-events:none;
+  transform-origin:top center;
+  opacity:0.32;
+  filter:brightness(0) blur(1px);
+  /* actual transform set by JS */
+}
+#char-shadow img{display:block;image-rendering:auto}
+ 
+/* character = plain img on z:3, browser handles GIF */
+#char-wrap{
+  position:fixed;z-index:3;
+  pointer-events:all;
+  transform-origin:bottom center;
+  cursor:grab;
+  /* actual transform set by JS */
+}
+#char-wrap img{display:block;image-rendering:auto;pointer-events:none}
+#char-wrap.talking img#char-closed{display:none}
+#char-wrap:not(.talking) img#char-open{display:none}
+ 
+/* ── UI ── */
 #ui{
   position:fixed;bottom:0;left:0;right:0;z-index:10;
-  background:linear-gradient(transparent,rgba(0,0,0,0.92) 25%);
-  padding:16px 13px 38px;
+  background:linear-gradient(transparent,rgba(0,0,0,0.92) 28%);
+  padding:14px 12px 36px;
   transition:opacity 0.3s,transform 0.3s;
 }
-#ui.hidden{opacity:0;transform:translateY(16px);pointer-events:none}
+#ui.hidden{opacity:0;transform:translateY(14px);pointer-events:none}
  
-/* slot row */
-.slot-row{display:flex;gap:7px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.slot-row{display:flex;gap:6px;margin-bottom:9px;overflow-x:auto;scrollbar-width:none}
 .slot-row::-webkit-scrollbar{display:none}
 .slot-btn{
-  flex-shrink:0;width:58px;height:58px;border-radius:11px;
+  flex-shrink:0;width:56px;height:56px;border-radius:11px;
   border:2px solid rgba(255,255,255,0.18);
   background:rgba(255,255,255,0.06);
-  color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;
   cursor:pointer;position:relative;overflow:hidden;
 }
-.slot-btn.active{border-color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.18)}
-.slot-btn.filled{border-color:rgba(255,255,255,0.35)}
+.slot-btn.active{border-color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.16)}
+.slot-btn.filled{border-color:rgba(255,255,255,0.32)}
 .slot-btn img{width:100%;height:100%;object-fit:contain;position:absolute;inset:0}
 .slot-num{position:absolute;top:2px;left:5px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px #000;z-index:2}
 .slot-plus{font-size:20px;z-index:2}
 .slot-lip{position:absolute;bottom:2px;right:3px;width:7px;height:7px;border-radius:50%;background:#ff6eb4;z-index:3}
  
-/* generic row */
 .row{display:flex;gap:6px;margin-bottom:6px;align-items:stretch}
 .btn{
   flex:1;padding:9px 3px;border-radius:9px;
-  border:1.5px solid rgba(255,255,255,0.22);
+  border:1.5px solid rgba(255,255,255,0.2);
   background:rgba(255,255,255,0.07);
-  color:#fff;font-size:12px;font-weight:500;
-  cursor:pointer;line-height:1.3;text-align:center;
-  -webkit-appearance:none;transition:background 0.15s;
+  color:#fff;font-size:12px;font-weight:500;cursor:pointer;
+  line-height:1.3;text-align:center;-webkit-appearance:none;
 }
-.btn:active{background:rgba(255,255,255,0.22)}
-.btn.on{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.6)}
+.btn:active{background:rgba(255,255,255,0.2)}
+.btn.on{background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.55)}
 .btn.rec{background:rgba(180,20,20,0.5);border-color:#f55}
 .btn.rec-on{background:rgba(220,20,20,0.8);border-color:#f33;animation:rp 1.1s infinite}
-@keyframes rp{0%,100%{opacity:1}50%{opacity:0.6}}
+@keyframes rp{0%,100%{opacity:1}50%{opacity:0.55}}
  
-/* volume pill */
 .vol-pill{
-  width:34px;flex-shrink:0;border-radius:9px;
-  border:1.5px solid rgba(255,255,255,0.22);
+  width:32px;flex-shrink:0;border-radius:9px;
+  border:1.5px solid rgba(255,255,255,0.2);
   background:rgba(255,255,255,0.05);
   display:flex;align-items:flex-end;justify-content:center;
   overflow:hidden;position:relative;min-height:42px;
 }
-.vol-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:rgba(70,230,110,0.7);transition:height 0.04s}
+.vol-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:rgba(70,225,100,0.7);transition:height 0.04s}
 .vol-icon{position:relative;font-size:13px;padding:8px 0;z-index:1}
  
-/* angle controls panel */
+/* ── angle panel ── */
 #angle-panel{
   position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-  z-index:15;background:rgba(0,0,0,0.88);
-  border:1px solid rgba(255,255,255,0.18);
-  border-radius:16px;padding:18px;width:280px;
-  display:none;flex-direction:column;gap:12px;
-  color:white;
+  z-index:15;background:rgba(10,10,10,0.93);
+  border:1px solid rgba(255,255,255,0.15);border-radius:16px;
+  padding:16px;width:288px;display:none;flex-direction:column;gap:11px;color:#fff;
 }
-#angle-panel h3{font-size:15px;font-weight:600;text-align:center;margin-bottom:2px}
-.angle-row{display:flex;align-items:center;gap:8px}
-.angle-row label{font-size:12px;color:rgba(255,255,255,0.6);width:60px;flex-shrink:0}
-.angle-row input[type=range]{flex:1;accent-color:#fff}
-.angle-row span{font-size:12px;width:36px;text-align:right}
-.angle-close{
-  padding:9px;border-radius:8px;border:1.5px solid rgba(255,255,255,0.3);
-  background:rgba(255,255,255,0.12);color:#fff;font-size:13px;cursor:pointer;text-align:center;
+#angle-panel h3{font-size:14px;font-weight:600;text-align:center}
+.sl-row{display:flex;align-items:center;gap:8px}
+.sl-row label{font-size:11px;color:rgba(255,255,255,0.55);width:64px;flex-shrink:0}
+.sl-row input[type=range]{flex:1;accent-color:#fff;height:20px}
+.sl-row span{font-size:11px;width:38px;text-align:right;color:rgba(255,255,255,0.8)}
+.panel-close{
+  padding:9px;border-radius:8px;
+  border:1.5px solid rgba(255,255,255,0.25);
+  background:rgba(255,255,255,0.1);color:#fff;
+  font-size:13px;cursor:pointer;text-align:center;margin-top:2px;
 }
  
-/* status */
+/* ── status / rec ── */
 #status{
   position:fixed;top:16px;left:0;right:0;text-align:center;
   color:rgba(255,255,255,0.88);font-size:13px;z-index:20;
-  pointer-events:none;text-shadow:0 1px 4px #000;
-  transition:opacity 0.5s;
+  pointer-events:none;text-shadow:0 1px 4px #000;transition:opacity 0.5s;
 }
-/* rec indicator */
 #rec-ind{
-  position:fixed;top:13px;left:13px;z-index:20;display:none;
+  position:fixed;top:12px;left:12px;z-index:20;display:none;
   align-items:center;gap:5px;background:rgba(0,0,0,0.55);
   padding:4px 10px;border-radius:18px;
 }
 #rec-ind .dot{width:7px;height:7px;border-radius:50%;background:#f33;animation:rp 1s infinite}
 #rec-ind span{color:#fff;font-size:12px;font-weight:600}
  
-/* start screen */
+/* ── start screen ── */
 #start{
   position:fixed;inset:0;z-index:30;background:#0a0a0a;
   display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:14px;color:#fff;text-align:center;padding:30px;
 }
 #start h1{font-size:26px;font-weight:700}
-#start p{font-size:13px;color:rgba(255,255,255,0.5);line-height:1.7;max-width:290px}
+#start p{font-size:13px;color:rgba(255,255,255,0.5);line-height:1.75;max-width:280px}
 #start-btn{
   padding:14px 44px;background:#fff;color:#000;border:none;
-  border-radius:50px;font-size:16px;font-weight:700;cursor:pointer;margin-top:6px;
+  border-radius:50px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;
 }
-#start em{font-size:11px;color:rgba(255,255,255,0.28);font-style:normal}
+#start em{font-size:11px;color:rgba(255,255,255,0.25);font-style:normal}
+ 
+/* tap-zone covers area behind char for UI toggle */
+#tap-zone{position:fixed;inset:0;z-index:2;pointer-events:all}
  
 #file-input,#lip-input{display:none}
 </style>
@@ -125,47 +144,19 @@ body{background:#000;overflow:hidden;font-family:-apple-system,sans-serif;height
   <h1>🎭 AR 캐릭터</h1>
   <p>카메라·마이크 권한이 필요해요<br>팝업이 뜨면 <strong style="color:#fff">허용</strong>을 눌러주세요</p>
   <button id="start-btn">시작하기</button>
-  <em>반드시 https:// 주소에서 열어야 작동해요</em>
+  <em>https:// 주소(GitHub Pages)에서 열어야 작동해요</em>
 </div>
  
 <video id="video" autoplay playsinline muted></video>
-<canvas id="shadow-canvas"></canvas>
-<canvas id="char-canvas"></canvas>
+<div id="tap-zone"></div>
  
-<!-- angle control panel -->
-<div id="angle-panel">
-  <h3>📐 각도 · 크기 조절</h3>
-  <div class="angle-row">
-    <label>좌우 기울기</label>
-    <input type="range" id="sl-gamma" min="-85" max="85" value="0" step="1">
-    <span id="lb-gamma">0°</span>
-  </div>
-  <div class="angle-row">
-    <label>앞뒤 각도</label>
-    <input type="range" id="sl-beta" min="20" max="160" value="90" step="1">
-    <span id="lb-beta">90°</span>
-  </div>
-  <div class="angle-row">
-    <label>크기</label>
-    <input type="range" id="sl-size" min="50" max="500" value="160" step="5">
-    <span id="lb-size">160</span>
-  </div>
-  <div class="angle-row">
-    <label>위치 Y</label>
-    <input type="range" id="sl-y" min="10" max="90" value="62" step="1">
-    <span id="lb-y">62%</span>
-  </div>
-  <div class="angle-row">
-    <label>위치 X</label>
-    <input type="range" id="sl-x" min="5" max="95" value="50" step="1">
-    <span id="lb-x">50%</span>
-  </div>
-  <div class="angle-row">
-    <label>자이로 추적</label>
-    <input type="range" id="sl-gyro" min="0" max="100" value="100" step="5">
-    <span id="lb-gyro">100%</span>
-  </div>
-  <button class="angle-close" onclick="closeAngle()">✓ 완료 (고정)</button>
+<!-- shadow: separate img element, CSS-transformed to lie flat -->
+<div id="char-shadow"><img id="shadow-img" src="" alt="" style="display:none"></div>
+ 
+<!-- character: browser renders GIF natively -->
+<div id="char-wrap">
+  <img id="char-closed" src="" alt="" style="display:none">
+  <img id="char-open"   src="" alt="" style="display:none">
 </div>
  
 <div id="rec-ind"><div class="dot"></div><span>REC</span></div>
@@ -188,32 +179,69 @@ body{background:#000;overflow:hidden;font-family:-apple-system,sans-serif;height
   </div>
 </div>
  
+<!-- angle panel -->
+<div id="angle-panel">
+  <h3>📐 각도 · 위치 조절</h3>
+  <div class="sl-row">
+    <label>좌우 기울기</label>
+    <input type="range" id="sl-gamma" min="-85" max="85" value="0" step="1">
+    <span id="lb-gamma">0°</span>
+  </div>
+  <div class="sl-row">
+    <label>앞뒤 각도</label>
+    <input type="range" id="sl-beta" min="30" max="150" value="90" step="1">
+    <span id="lb-beta">90°</span>
+  </div>
+  <div class="sl-row">
+    <label>자이로 반응</label>
+    <input type="range" id="sl-gyro" min="0" max="100" value="80" step="5">
+    <span id="lb-gyro">80%</span>
+  </div>
+  <div class="sl-row">
+    <label>크기</label>
+    <input type="range" id="sl-size" min="50" max="480" value="160" step="5">
+    <span id="lb-size">160px</span>
+  </div>
+  <div class="sl-row">
+    <label>위치 X</label>
+    <input type="range" id="sl-x" min="5" max="95" value="50" step="1">
+    <span id="lb-x">50%</span>
+  </div>
+  <div class="sl-row">
+    <label>위치 Y</label>
+    <input type="range" id="sl-y" min="10" max="92" value="62" step="1">
+    <span id="lb-y">62%</span>
+  </div>
+  <div class="sl-row">
+    <label>그림자 길이</label>
+    <input type="range" id="sl-shadow" min="0" max="120" value="60" step="5">
+    <span id="lb-shadow">60%</span>
+  </div>
+  <button class="panel-close" onclick="closeAngle()">✓ 완료 — 이 설정으로 고정</button>
+</div>
+ 
 <input type="file" id="file-input" accept="image/gif,image/png,image/jpeg,image/webp">
 <input type="file" id="lip-input" accept="image/gif,image/png,image/jpeg,image/webp">
  
 <script>
-// ═══ STATE ═══════════════════════════════════════════════
+// ═══ STATE ═══════════════════════════════════════════════════
 const NUM = 6;
-const video = document.getElementById('video');
-const sCv = document.getElementById('shadow-canvas'), sCtx = sCv.getContext('2d');
-const cCv = document.getElementById('char-canvas'),  cCtx = cCv.getContext('2d');
- 
-let W = 0, H = 0;
- 
-let slots = Array.from({length: NUM}, () => ({url:null,lipUrl:null,img:null,lipImg:null}));
+let slots = Array.from({length:NUM}, ()=>({url:null,lipUrl:null}));
 let activeSlot = 0;
  
-// position (0..1 of screen)
-let charX = 0.5, charY = 0.62;
-let charSize = 160;
+// position (% of viewport)
+let charX = 50, charY = 62; // percent
+let charSize = 160; // px width
  
-// perspective angles
-// manualGamma: locked left/right tilt (-85..85)
-// manualBeta:  locked forward tilt (20..160, 90=upright)
-// gyroMix: 0=fully manual, 1=fully follows gyro
-let manualGamma = 0, manualBeta = 90, gyroMix = 1.0;
-let liveGamma = 0,   liveBeta  = 90;   // from device sensor
-let displayGamma = 0, displayBeta = 90; // what we actually use
+// angles
+let manualGamma = 0;   // left/right tilt we SET manually (-85..85)
+let manualBeta  = 90;  // forward tilt we SET manually (30..150)
+let gyroMix     = 0.8; // how much live gyro blends in
+let liveGamma   = 0, liveBeta = 90;
+let dispGamma   = 0, dispBeta = 90;
+ 
+// shadow
+let shadowLen = 60; // % of charSize
  
 // mic
 let micStarted = false;
@@ -221,268 +249,277 @@ let micThreshold = 20;
 let smoothVol = 0;
 let isTalking = false;
 let talkTimer = null;
-const TALK_HOLD = 80; // ms — fast mouth close
+const HOLD_MS = 80;
  
-// ambient
+// ambient brightness
 let brightness = 1.0;
-const bTmp = document.createElement('canvas');
-bTmp.width = 8; bTmp.height = 8;
-const bCtx = bTmp.getContext('2d', {willReadFrequently: true});
  
 // recording
 let recorder = null, recChunks = [], recOn = false;
-let recCv = null, recCtx2 = null, recAnim = null;
 let uiVisible = true;
  
-// shadow cache
-const shadowCache = new WeakMap();
+// DOM refs
+const charWrap   = document.getElementById('char-wrap');
+const charClosed = document.getElementById('char-closed');
+const charOpen   = document.getElementById('char-open');
+const charShadow = document.getElementById('char-shadow');
+const shadowImg  = document.getElementById('shadow-img');
+const video      = document.getElementById('video');
+const volFill    = document.getElementById('vol-fill');
  
-// ═══ RESIZE ══════════════════════════════════════════════
-function onResize() {
-  W = window.innerWidth; H = window.innerHeight;
-  [sCv, cCv].forEach(c => { c.width=W; c.height=H; c.style.width=W+'px'; c.style.height=H+'px'; });
-  redraw();
+// ═══ APPLY TRANSFORM ═════════════════════════════════════════
+// Everything via CSS transform — GPU accelerated, no canvas needed
+function applyTransform() {
+  const W = window.innerWidth, H = window.innerHeight;
+ 
+  // perspective from angles
+  const rad = (dispGamma / 90) * (Math.PI / 2);
+  const scaleX = Math.max(0.04, Math.cos(rad));   // 1 = face-on, ~0 = edge-on
+  const skewDeg = dispGamma * 0.18;
+  const distScale = Math.max(0.55, Math.min(1.25, dispBeta / 90));
+ 
+  const visW = charSize * scaleX * distScale;
+  const visH = charSize * distScale;
+ 
+  const fx = charX / 100 * W;  // foot X px
+  const fy = charY / 100 * H;  // foot Y px (= bottom of char)
+ 
+  // ── character ──
+  // positioned so bottom-center = (fx, fy)
+  charWrap.style.left   = fx + 'px';
+  charWrap.style.top    = fy + 'px';
+  charWrap.style.width  = visW + 'px';
+  charWrap.style.marginLeft = (-visW / 2) + 'px';
+ 
+  const skR = skewDeg * Math.PI / 180;
+  // skewY for perspective lean, scaleX + distScale already applied via width
+  charWrap.style.transform = `skewY(${skewDeg.toFixed(2)}deg) scaleY(${distScale.toFixed(3)})`;
+  charWrap.style.filter = `brightness(${brightness.toFixed(2)})`;
+ 
+  [charClosed, charOpen].forEach(img => {
+    img.style.width = '100%';
+    img.style.height = 'auto';
+  });
+ 
+  // ── shadow ──
+  // shadow = same image, laid flat below foot, tinted black
+  // flat = scaleY very small + perspective skew forward
+  const shadowH = charSize * distScale * (shadowLen / 100);
+  const shadowW = visW;
+  const shiftX = (dispGamma / 90) * visW * 0.38;
+ 
+  charShadow.style.left   = (fx + shiftX * 0.35) + 'px';
+  charShadow.style.top    = fy + 'px';
+  charShadow.style.width  = shadowW + 'px';
+  charShadow.style.marginLeft = (-shadowW / 2) + 'px';
+  charShadow.style.height = shadowH + 'px';
+ 
+  // flatten onto floor: scaleY squish + skew
+  const shadowSkew = (dispGamma / 90) * 22;
+  charShadow.style.transform = `scaleY(0.22) skewX(${shadowSkew.toFixed(1)}deg)`;
+ 
+  shadowImg.style.width = '100%';
+  shadowImg.style.height = shadowH / 0.22 + 'px'; // compensate for scaleY
+  shadowImg.style.objectFit = 'fill';
 }
-window.addEventListener('resize', onResize);
  
-// ═══ GYRO ════════════════════════════════════════════════
+// ═══ GYRO ════════════════════════════════════════════════════
 function setupGyro() {
   const listen = () => {
     window.addEventListener('deviceorientation', e => {
       if (e.gamma !== null) liveGamma = Math.max(-85, Math.min(85, e.gamma));
-      if (e.beta  !== null) liveBeta  = Math.max(20,  Math.min(160, e.beta));
-      // mix manual + live
-      displayGamma = manualGamma + (liveGamma - manualGamma) * gyroMix;
-      displayBeta  = manualBeta  + (liveBeta  - manualBeta)  * gyroMix;
-      redraw();
-    });
+      if (e.beta  !== null) liveBeta  = Math.max(30,  Math.min(150, e.beta));
+      blendAngles();
+      applyTransform();
+    }, {passive: true});
   };
   if (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(r => { if (r==='granted') listen(); }).catch(()=>{});
+    DeviceOrientationEvent.requestPermission()
+      .then(r => { if (r === 'granted') listen(); }).catch(()=>{});
   } else { listen(); }
 }
  
-// ═══ PERSPECTIVE MATH ════════════════════════════════════
-function getPerspective() {
-  // gamma = left/right (0=face-on, ±90=edge-on)
-  const rad = (displayGamma / 90) * (Math.PI / 2);
-  const scaleX = Math.max(0.03, Math.cos(rad));
-  const skewDeg = displayGamma * 0.2;
-  // beta: 90=phone upright(normal), lower=more overhead
-  const distScale = Math.max(0.5, Math.min(1.3, displayBeta / 90));
-  return { scaleX, skewDeg, distScale };
+function blendAngles() {
+  dispGamma = manualGamma * (1 - gyroMix) + liveGamma * gyroMix;
+  dispBeta  = manualBeta  * (1 - gyroMix) + liveBeta  * gyroMix;
 }
  
-// ═══ DRAW ════════════════════════════════════════════════
-let rafQ = false;
-function redraw() {
-  if (rafQ) return; rafQ = true;
-  requestAnimationFrame(() => { rafQ = false; _draw(); });
-}
- 
-function _draw() {
-  const { scaleX, skewDeg, distScale } = getPerspective();
-  const s = slots[activeSlot];
-  const fx = charX * W, fy = charY * H;
-  const visW = charSize * scaleX * distScale;
-  const visH = charSize * distScale;
- 
-  // ── shadow ──
-  sCtx.clearRect(0, 0, W, H);
-  if (s.img) drawShadow(sCtx, fx, fy, visW, visH, scaleX, s.img);
- 
-  // ── character ──
-  cCtx.clearRect(0, 0, W, H);
-  const img = (isTalking && s.lipImg) ? s.lipImg : s.img;
-  if (img) {
-    const skR = skewDeg * Math.PI / 180;
-    const sw = charSize * scaleX * distScale;
-    const sh = charSize * distScale;
-    cCtx.save();
-    cCtx.translate(fx, fy);
-    cCtx.transform(1, 0, Math.tan(skR), 1, 0, 0);
-    cCtx.filter = `brightness(${brightness.toFixed(2)})`;
-    cCtx.drawImage(img, -sw/2, -sh, sw, sh);
-    cCtx.restore();
-  }
-}
- 
-// ── floor shadow: character silhouette lying flat on ground ──
-function drawShadow(ctx, fx, fy, visW, visH, scaleX, img) {
-  // shadow points "forward" (down screen) from foot
-  const len   = visH * 0.7;
-  const width = visW * 1.05;
-  // shift shadow based on tilt direction
-  const shift = (displayGamma / 90) * visW * 0.45;
- 
-  const oc = getShadowOC(img, Math.max(1, Math.round(width)), Math.max(1, Math.round(len)));
- 
-  ctx.save();
-  ctx.globalAlpha = 0.32;
-  ctx.translate(fx + shift * 0.4, fy);
-  // flatten onto floor: scale Y way down, slight skew
-  ctx.scale(1, 0.22);
-  ctx.transform(1, 0, (displayGamma / 90) * 0.45, 1, 0, 0);
-  ctx.drawImage(oc, -width/2, 0, width, len);
-  ctx.restore();
-}
- 
-function getShadowOC(img, w, h) {
-  const key = `${w}_${h}`;
-  const cached = shadowCache.get(img);
-  if (cached && cached.key === key) return cached.cv;
-  const oc = document.createElement('canvas');
-  oc.width = w; oc.height = h;
-  const ox = oc.getContext('2d');
-  ox.drawImage(img, 0, 0, w, h);
-  ox.globalCompositeOperation = 'source-in';
-  ox.fillStyle = '#000'; ox.fillRect(0, 0, w, h);
-  shadowCache.set(img, {key, cv: oc});
-  return oc;
-}
- 
-// ═══ AMBIENT BRIGHTNESS ══════════════════════════════════
-setInterval(() => {
-  if (!video.videoWidth) return;
-  bCtx.drawImage(video, 0, 0, 8, 8);
-  const d = bCtx.getImageData(0,0,8,8).data;
-  let s = 0; for (let i=0;i<d.length;i+=4) s+=(d[i]+d[i+1]+d[i+2])/3;
-  brightness = Math.min(1.5, Math.max(0.38, (s/64)/100));
-  redraw();
-}, 1000);
- 
-// ═══ SLOTS ═══════════════════════════════════════════════
+// ═══ SLOTS ═══════════════════════════════════════════════════
 function buildSlots() {
   const row = document.getElementById('slot-row');
   row.innerHTML = '';
   slots.forEach((s, i) => {
     const btn = document.createElement('button');
     btn.className = 'slot-btn' + (i===activeSlot?' active':'') + (s.url?' filled':'');
-    const num = document.createElement('span'); num.className='slot-num'; num.textContent=i+1; btn.appendChild(num);
-    if (s.url) { const im=document.createElement('img'); im.src=s.url; btn.appendChild(im); }
-    else { const pl=document.createElement('span'); pl.className='slot-plus'; pl.textContent='＋'; btn.appendChild(pl); }
-    if (s.lipUrl) { const d=document.createElement('div'); d.className='slot-lip'; btn.appendChild(d); }
+ 
+    const num = document.createElement('span'); num.className='slot-num'; num.textContent=i+1;
+    btn.appendChild(num);
+ 
+    if (s.url) {
+      const im = document.createElement('img'); im.src = s.url; btn.appendChild(im);
+    } else {
+      const pl = document.createElement('span'); pl.className='slot-plus'; pl.textContent='＋';
+      btn.appendChild(pl);
+    }
+    if (s.lipUrl) {
+      const d = document.createElement('div'); d.className='slot-lip'; btn.appendChild(d);
+    }
     btn.addEventListener('click', () => slotTap(i));
     row.appendChild(btn);
   });
 }
  
 function slotTap(i) {
-  if (!slots[i].url) { activeSlot=i; document.getElementById('file-input').click(); }
-  else { activeSlot=i; buildSlots(); redraw(); setStatus(`캐릭터 ${i+1}번`); }
+  if (!slots[i].url) {
+    activeSlot = i;
+    document.getElementById('file-input').click();
+  } else {
+    activeSlot = i;
+    loadSlot(i);
+    buildSlots();
+    setStatus(`캐릭터 ${i+1}번`);
+  }
+}
+ 
+function loadSlot(i) {
+  const s = slots[i];
+  if (!s.url) return;
+  // show closed mouth by default
+  charClosed.src = s.url;
+  charClosed.style.display = 'block';
+  charOpen.src = s.lipUrl || '';
+  charOpen.style.display = s.lipUrl ? 'block' : 'none';
+  // shadow uses same image
+  shadowImg.src = s.url;
+  shadowImg.style.display = 'block';
+  applyTransform();
 }
  
 document.getElementById('file-input').addEventListener('change', e => {
-  const f=e.target.files[0]; if(!f) return;
-  const url=URL.createObjectURL(f);
-  slots[activeSlot].url=url;
-  const im=new Image(); im.onload=()=>{ slots[activeSlot].img=im; shadowCache.delete(im); buildSlots(); redraw(); };
-  im.src=url;
-  buildSlots(); setStatus(`슬롯 ${activeSlot+1} 등록 ✓`);
-  e.target.value='';
+  const f = e.target.files[0]; if (!f) return;
+  const url = URL.createObjectURL(f);
+  slots[activeSlot].url = url;
+  buildSlots();
+  loadSlot(activeSlot);
+  setStatus(`슬롯 ${activeSlot+1} 등록 ✓`);
+  e.target.value = '';
 });
  
 function pickLip() { document.getElementById('lip-input').click(); }
 document.getElementById('lip-input').addEventListener('change', e => {
-  const f=e.target.files[0]; if(!f) return;
-  const url=URL.createObjectURL(f);
-  slots[activeSlot].lipUrl=url;
-  const im=new Image(); im.onload=()=>{ slots[activeSlot].lipImg=im; };
-  im.src=url; buildSlots(); setStatus(`슬롯 ${activeSlot+1} 입열림 GIF ✓`);
-  e.target.value='';
+  const f = e.target.files[0]; if (!f) return;
+  const url = URL.createObjectURL(f);
+  slots[activeSlot].lipUrl = url;
+  charOpen.src = url;
+  charOpen.style.display = 'block';
+  shadowImg.src = slots[activeSlot].url; // shadow stays as closed
+  buildSlots();
+  setStatus(`슬롯 ${activeSlot+1} 입열림 GIF ✓`);
+  e.target.value = '';
 });
  
-// ═══ DRAG ════════════════════════════════════════════════
-let drag=false, dsx=0, dsy=0, dox=0, doy=0;
+// ═══ DRAG ════════════════════════════════════════════════════
+let drag = false, dsx=0, dsy=0, dox=0, doy=0;
+const W_ = () => window.innerWidth, H_ = () => window.innerHeight;
  
-cCv.addEventListener('pointerdown', e => {
-  const fx=charX*W, fy=charY*H;
-  const {scaleX,distScale}=getPerspective();
-  const hw=charSize*scaleX*distScale*0.7+30, hh=charSize*distScale*0.7+30;
-  if (Math.abs(e.clientX-fx)<hw && Math.abs(e.clientY-fy)<hh) {
-    drag=true; dsx=e.clientX; dsy=e.clientY; dox=charX; doy=charY;
-    cCv.setPointerCapture(e.pointerId); e.preventDefault();
-  } else {
-    // tap outside = toggle UI
-    setUiVisible(!uiVisible);
-  }
-},{passive:false});
+charWrap.addEventListener('pointerdown', e => {
+  drag=true; dsx=e.clientX; dsy=e.clientY; dox=charX; doy=charY;
+  charWrap.setPointerCapture(e.pointerId);
+  charWrap.style.cursor='grabbing';
+  e.stopPropagation(); e.preventDefault();
+}, {passive:false});
  
-cCv.addEventListener('pointermove', e => {
+charWrap.addEventListener('pointermove', e => {
   if (!drag) return;
-  charX = Math.max(0.04, Math.min(0.96, dox+(e.clientX-dsx)/W));
-  charY = Math.max(0.08, Math.min(0.92, doy+(e.clientY-dsy)/H));
+  charX = Math.max(4, Math.min(96, dox + (e.clientX-dsx)/W_()*100));
+  charY = Math.max(8, Math.min(93, doy + (e.clientY-dsy)/H_()*100));
   // sync sliders
-  document.getElementById('sl-x').value = Math.round(charX*100);
-  document.getElementById('lb-x').textContent = Math.round(charX*100)+'%';
-  document.getElementById('sl-y').value = Math.round(charY*100);
-  document.getElementById('lb-y').textContent = Math.round(charY*100)+'%';
-  redraw();
+  setSlider('sl-x','lb-x', Math.round(charX), Math.round(charX)+'%');
+  setSlider('sl-y','lb-y', Math.round(charY), Math.round(charY)+'%');
+  applyTransform();
 });
-cCv.addEventListener('pointerup', ()=>{ drag=false; });
+charWrap.addEventListener('pointerup', () => { drag=false; charWrap.style.cursor='grab'; });
+ 
+// tap anywhere outside char → toggle UI
+document.getElementById('tap-zone').addEventListener('click', () => setUiVisible(!uiVisible));
  
 function resizeCh(d) {
   charSize = Math.max(50, Math.min(500, charSize+d));
-  document.getElementById('sl-size').value = charSize;
-  document.getElementById('lb-size').textContent = charSize;
-  redraw();
+  setSlider('sl-size','lb-size', charSize, charSize+'px');
+  applyTransform();
 }
  
-// ═══ ANGLE PANEL ═════════════════════════════════════════
+// ═══ ANGLE PANEL ═════════════════════════════════════════════
 function openAngle() {
-  // sync sliders to current values
-  document.getElementById('sl-gamma').value = Math.round(manualGamma);
-  document.getElementById('lb-gamma').textContent = Math.round(manualGamma)+'°';
-  document.getElementById('sl-beta').value  = Math.round(manualBeta);
-  document.getElementById('lb-beta').textContent  = Math.round(manualBeta)+'°';
-  document.getElementById('sl-size').value  = charSize;
-  document.getElementById('lb-size').textContent  = charSize;
-  document.getElementById('sl-x').value = Math.round(charX*100);
-  document.getElementById('lb-x').textContent = Math.round(charX*100)+'%';
-  document.getElementById('sl-y').value = Math.round(charY*100);
-  document.getElementById('lb-y').textContent = Math.round(charY*100)+'%';
-  document.getElementById('sl-gyro').value = Math.round(gyroMix*100);
-  document.getElementById('lb-gyro').textContent = Math.round(gyroMix*100)+'%';
-  document.getElementById('angle-panel').style.display = 'flex';
+  setSlider('sl-gamma','lb-gamma', Math.round(manualGamma), Math.round(manualGamma)+'°');
+  setSlider('sl-beta','lb-beta',   Math.round(manualBeta),  Math.round(manualBeta)+'°');
+  setSlider('sl-gyro','lb-gyro',   Math.round(gyroMix*100), Math.round(gyroMix*100)+'%');
+  setSlider('sl-size','lb-size',   charSize, charSize+'px');
+  setSlider('sl-x','lb-x',         Math.round(charX), Math.round(charX)+'%');
+  setSlider('sl-y','lb-y',         Math.round(charY), Math.round(charY)+'%');
+  setSlider('sl-shadow','lb-shadow',shadowLen, shadowLen+'%');
+  document.getElementById('angle-panel').style.display='flex';
 }
- 
 function closeAngle() {
-  document.getElementById('angle-panel').style.display = 'none';
+  document.getElementById('angle-panel').style.display='none';
   setStatus('각도 고정됨 ✓');
 }
  
-// slider wiring
-function wireSlider(id, labelId, onChange) {
-  const sl = document.getElementById(id), lb = document.getElementById(labelId);
-  sl.addEventListener('input', () => { onChange(parseFloat(sl.value)); lb.textContent = sl.value; redraw(); });
+function setSlider(slId, lbId, val, label) {
+  document.getElementById(slId).value = val;
+  document.getElementById(lbId).textContent = label || val;
 }
  
-wireSlider('sl-gamma', 'lb-gamma', v => {
-  manualGamma = v;
-  displayGamma = manualGamma + (liveGamma - manualGamma) * gyroMix;
-  document.getElementById('lb-gamma').textContent = Math.round(v)+'°';
+function wire(id, lbId, onChange) {
+  document.getElementById(id).addEventListener('input', function() {
+    const v = parseFloat(this.value);
+    onChange(v);
+    applyTransform();
+  });
+}
+ 
+wire('sl-gamma','lb-gamma', v => {
+  manualGamma=v; blendAngles();
+  document.getElementById('lb-gamma').textContent=Math.round(v)+'°';
 });
-wireSlider('sl-beta', 'lb-beta', v => {
-  manualBeta = v;
-  displayBeta = manualBeta + (liveBeta - manualBeta) * gyroMix;
-  document.getElementById('lb-beta').textContent = Math.round(v)+'°';
+wire('sl-beta','lb-beta', v => {
+  manualBeta=v; blendAngles();
+  document.getElementById('lb-beta').textContent=Math.round(v)+'°';
 });
-wireSlider('sl-size', 'lb-size', v => { charSize = v; });
-wireSlider('sl-x', 'lb-x', v => {
-  charX = v/100;
-  document.getElementById('lb-x').textContent = Math.round(v)+'%';
+wire('sl-gyro','lb-gyro', v => {
+  gyroMix=v/100; blendAngles();
+  document.getElementById('lb-gyro').textContent=Math.round(v)+'%';
 });
-wireSlider('sl-y', 'lb-y', v => {
-  charY = v/100;
-  document.getElementById('lb-y').textContent = Math.round(v)+'%';
+wire('sl-size','lb-size', v => {
+  charSize=v;
+  document.getElementById('lb-size').textContent=Math.round(v)+'px';
 });
-wireSlider('sl-gyro', 'lb-gyro', v => {
-  gyroMix = v/100;
-  document.getElementById('lb-gyro').textContent = Math.round(v)+'%';
+wire('sl-x','lb-x', v => {
+  charX=v;
+  document.getElementById('lb-x').textContent=Math.round(v)+'%';
+});
+wire('sl-y','lb-y', v => {
+  charY=v;
+  document.getElementById('lb-y').textContent=Math.round(v)+'%';
+});
+wire('sl-shadow','lb-shadow', v => {
+  shadowLen=v;
+  document.getElementById('lb-shadow').textContent=Math.round(v)+'%';
 });
  
-// ═══ MIC ═════════════════════════════════════════════════
+// ═══ TALKING STATE ════════════════════════════════════════════
+function setTalking(v) {
+  if (v === isTalking) return;
+  isTalking = v;
+  if (v && slots[activeSlot].lipUrl) {
+    charWrap.classList.add('talking');
+  } else {
+    charWrap.classList.remove('talking');
+  }
+}
+ 
+// ═══ MIC ═════════════════════════════════════════════════════
 async function startMic() {
   if (micStarted) return;
   try {
@@ -492,35 +529,30 @@ async function startMic() {
     const src = ac.createMediaStreamSource(stream);
     const an = ac.createAnalyser();
     an.fftSize = 256;
-    an.smoothingTimeConstant = 0.4; // fast response
+    an.smoothingTimeConstant = 0.35;
     src.connect(an);
     micStarted = true;
  
     const btn = document.getElementById('mic-btn');
     btn.classList.add('on');
-    btn.innerHTML = '🎤 마이크<br><span style="font-size:10px;opacity:0.5">ON</span>';
+    btn.innerHTML='🎤 마이크<br><span style="font-size:10px;opacity:0.5">ON</span>';
     setStatus('마이크 켜짐 ✓');
  
     const data = new Uint8Array(an.frequencyBinCount);
     function tick() {
       an.getByteFrequencyData(data);
-      // voice band only (approx 300–3000Hz)
+      // voice band only
       const voice = data.slice(2, 20);
       const avg = voice.reduce((a,b)=>a+b,0) / voice.length;
-      // very light smoothing so it reacts fast
-      smoothVol = smoothVol * 0.45 + avg * 0.55;
- 
-      document.getElementById('vol-fill').style.height = Math.min(100, smoothVol*3)+'%';
+      smoothVol = smoothVol * 0.4 + avg * 0.6;
+      volFill.style.height = Math.min(100, smoothVol*3)+'%';
  
       const speaking = smoothVol > micThreshold;
       if (speaking) {
         clearTimeout(talkTimer); talkTimer = null;
-        if (!isTalking) { isTalking=true; redraw(); }
+        setTalking(true);
       } else if (isTalking && !talkTimer) {
-        // TALK_HOLD ms after sound stops → close mouth
-        talkTimer = setTimeout(() => {
-          isTalking=false; talkTimer=null; redraw();
-        }, TALK_HOLD);
+        talkTimer = setTimeout(() => { setTalking(false); talkTimer=null; }, HOLD_MS);
       }
       requestAnimationFrame(tick);
     }
@@ -532,21 +564,37 @@ async function startMic() {
  
 function adjSens(d) {
   micThreshold = Math.max(4, Math.min(60, micThreshold+d));
-  setStatus(`마이크 감도 임계값: ${micThreshold} (낮으면 민감, 높으면 둔감)`);
+  setStatus(`감도 임계값: ${micThreshold} (낮을수록 민감)`);
 }
  
-// ═══ RECORDING ═══════════════════════════════════════════
+// ═══ AMBIENT BRIGHTNESS (lightweight) ════════════════════════
+const bTmp = document.createElement('canvas'); bTmp.width=8; bTmp.height=8;
+const bCtx = bTmp.getContext('2d', {willReadFrequently:true});
+setInterval(()=>{
+  if (!video.videoWidth) return;
+  bCtx.drawImage(video,0,0,8,8);
+  const d=bCtx.getImageData(0,0,8,8).data;
+  let s=0; for(let i=0;i<d.length;i+=4) s+=(d[i]+d[i+1]+d[i+2])/3;
+  brightness=Math.min(1.5,Math.max(0.4,(s/64)/100));
+  applyTransform();
+}, 1200);
+ 
+// ═══ RECORDING ═══════════════════════════════════════════════
+// Record from an offscreen canvas that composites video + DOM elements
 async function toggleRec() {
   const btn = document.getElementById('rec-btn');
   if (!recOn) {
     setUiVisible(false);
     await sleep(300);
     try {
-      recCv = document.createElement('canvas');
-      recCv.width = W; recCv.height = H;
-      recCtx2 = recCv.getContext('2d');
- 
+      // Use captureStream on video and composite with html2canvas-style approach
+      // Simplest reliable method: capture the whole viewport via getDisplayMedia
+      // but that needs user gesture & shows picker — instead we composite manually
+      const recCv = document.createElement('canvas');
+      recCv.width = window.innerWidth; recCv.height = window.innerHeight;
+      const rCtx = recCv.getContext('2d');
       const stream = recCv.captureStream(30);
+ 
       if (micStarted) {
         try {
           const ms = await navigator.mediaDevices.getUserMedia({audio:true});
@@ -554,11 +602,9 @@ async function toggleRec() {
         } catch(e){}
       }
  
-      const mime = MediaRecorder.isTypeSupported('video/mp4')
-        ? 'video/mp4'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-          ? 'video/webm;codecs=vp9' : 'video/webm';
- 
+      const mime = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4'
+                 : MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9'
+                 : 'video/webm';
       recorder = new MediaRecorder(stream, {mimeType: mime});
       recChunks = [];
       recorder.ondataavailable = e => { if(e.data.size>0) recChunks.push(e.data); };
@@ -566,27 +612,60 @@ async function toggleRec() {
       recorder.start(100);
       recOn = true;
  
+      const W = recCv.width, H = recCv.height;
       function loop() {
         if (!recOn) return;
-        recAnim = requestAnimationFrame(loop);
-        recCtx2.clearRect(0,0,W,H);
-        if (video.videoWidth) recCtx2.drawImage(video,0,0,W,H);
-        recCtx2.drawImage(sCv,0,0,W,H);
-        recCtx2.drawImage(cCv,0,0,W,H);
+        requestAnimationFrame(loop);
+        rCtx.clearRect(0,0,W,H);
+        // bg video
+        if (video.videoWidth) rCtx.drawImage(video,0,0,W,H);
+ 
+        // shadow: draw char image squished
+        const s = slots[activeSlot];
+        if (s.url) {
+          const charImg = new Image(); charImg.src = s.url;
+          const rad = (dispGamma/90)*(Math.PI/2);
+          const sx = Math.max(0.04, Math.cos(rad));
+          const ds = Math.max(0.55,Math.min(1.25,dispBeta/90));
+          const fw = charSize*sx*ds, fh = charSize*ds;
+          const fx2 = charX/100*W, fy2 = charY/100*H;
+          const shX = (dispGamma/90)*fw*0.38*0.35;
+          const skR2 = (dispGamma/90)*22*Math.PI/180;
+ 
+          // shadow
+          rCtx.save();
+          rCtx.globalAlpha=0.32;
+          rCtx.translate(fx2+shX, fy2);
+          rCtx.scale(1,0.22);
+          rCtx.transform(1,Math.tan(skR2),0,1,0,0);
+          rCtx.filter='brightness(0) blur(1px)';
+          rCtx.drawImage(charImg,-fw/2,0,fw,fh*(shadowLen/100)/0.22);
+          rCtx.restore();
+ 
+          // char
+          const sk = dispGamma*0.18*Math.PI/180;
+          rCtx.save();
+          rCtx.filter=`brightness(${brightness.toFixed(2)})`;
+          rCtx.globalAlpha=1;
+          rCtx.translate(fx2, fy2);
+          rCtx.transform(1,Math.tan(sk),0,ds,0,0);
+          const useImg = (isTalking && s.lipUrl) ? (() => {const i=new Image();i.src=s.lipUrl;return i;})() : charImg;
+          rCtx.drawImage(useImg, -fw/2/ds, -fh/ds, fw/ds, fh/ds);
+          rCtx.restore();
+        }
       }
       loop();
  
       document.getElementById('rec-ind').style.display='flex';
       btn.className='btn rec-on';
       btn.innerHTML='⏹ 중지<br><span style="font-size:10px">탭</span>';
-      setStatus('● 녹화 중 — 중지하려면 녹화 버튼');
+      setStatus('● 녹화 중');
     } catch(e) {
       setUiVisible(true);
       setStatus('녹화 오류: '+e.message);
     }
   } else {
     if(recorder) recorder.stop();
-    if(recAnim) { cancelAnimationFrame(recAnim); recAnim=null; }
     recOn=false;
     document.getElementById('rec-ind').style.display='none';
     btn.className='btn rec';
@@ -597,28 +676,25 @@ async function toggleRec() {
 }
  
 function saveRec() {
-  const mime = recChunks[0]?.type||'video/webm';
-  const ext  = mime.includes('mp4')?'mp4':'webm';
-  const blob = new Blob(recChunks,{type:mime});
-  const url  = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const mime=recChunks[0]?.type||'video/webm';
+  const ext=mime.includes('mp4')?'mp4':'webm';
+  const blob=new Blob(recChunks,{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
   a.href=url; a.download=`ar-${Date.now()}.${ext}`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),5000);
   setStatus('저장됨 ✓');
 }
  
-// ═══ UI ══════════════════════════════════════════════════
+// ═══ UI ══════════════════════════════════════════════════════
 function setUiVisible(v) {
   uiVisible=v;
   document.getElementById('ui').classList.toggle('hidden',!v);
-  document.getElementById('status').style.opacity = v?'1':'0';
+  document.getElementById('status').style.opacity=v?'1':'0';
 }
  
-// GIF animation: redraw every 120ms so GIF frames update
-setInterval(() => { if(!recOn) redraw(); }, 120);
- 
-// keyboard
+// keyboard shortcuts
 document.addEventListener('keydown', e => {
   const n=parseInt(e.key);
   if(n>=1&&n<=NUM) slotTap(n-1);
@@ -626,39 +702,41 @@ document.addEventListener('keydown', e => {
   if(e.key==='a') openAngle();
 });
  
-// ═══ CAMERA & INIT ═══════════════════════════════════════
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
- 
-function setStatus(msg, dur=3200) {
-  const el=document.getElementById('status');
-  el.textContent=msg; el.style.opacity='1';
-  clearTimeout(el._t);
-  el._t=setTimeout(()=>el.style.opacity='0', dur);
-}
- 
+// ═══ CAMERA ══════════════════════════════════════════════════
 async function startCamera() {
   try {
     const s = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
       audio:false
     });
-    video.srcObject=s;
-    await video.play();
+    video.srcObject=s; await video.play();
     setStatus('슬롯을 눌러 GIF를 등록하세요 👆', 5000);
   } catch(e) {
     setStatus('카메라 오류: '+e.message);
   }
 }
  
-document.getElementById('start-btn').addEventListener('click', async () => {
+// ═══ INIT ════════════════════════════════════════════════════
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+ 
+function setStatus(msg, dur=3000) {
+  const el=document.getElementById('status');
+  el.textContent=msg; el.style.opacity='1';
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.style.opacity='0', dur);
+}
+ 
+document.getElementById('start-btn').addEventListener('click', async ()=>{
   document.getElementById('start').style.display='none';
-  onResize();
   await startCamera();
   setupGyro();
   buildSlots();
+  blendAngles();
+  applyTransform();
 });
  
 buildSlots();
 </script>
 </body>
 </html>
+ 
